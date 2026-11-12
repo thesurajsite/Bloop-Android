@@ -8,7 +8,7 @@ plugins {
 val localProperties = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
-val backendUrl = localProperties.getProperty("backend.url") ?: "http://10.0.2.2:8080"
+val backendUrl = localProperties.getProperty("backend.url") ?: "https://3tandbmc6ekqqilxvudrtqf5dq0etnpv.lambda-url.ap-south-1.on.aws"
 
 android {
     namespace = "dev.suraj.bloop"

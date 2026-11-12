@@ -3,7 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- usesCleartextTraffic: the local backend is plain http:// -->
+    <!-- usesCleartextTraffic: only needed if you point backend.url at a local http:// server -->
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

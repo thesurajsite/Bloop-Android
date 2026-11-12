@@ -1,6 +1,7 @@
 package dev.suraj.bloop
 
 import android.util.Patterns
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -75,7 +77,7 @@ fun LoginScreen(onLoggedIn: (String, User) -> Unit, onSignup: () -> Unit) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
-        HeroBanner()
+        LogoMark()
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Welcome back", style = TitleStyle)
@@ -172,38 +174,10 @@ fun SignupScreen(onSignedUp: (String, User) -> Unit, onBack: () -> Unit) {
     }
 }
 
-/** Lilac banner with confetti dots and the Bloop balloon. */
-@Composable
-private fun HeroBanner() {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(160.dp)
-            .clip(RoundedCornerShape(32.dp))
-            .background(BloopColors.VioletSoft),
-    ) {
-        Dot(18, BloopColors.Lemon, Modifier.align(Alignment.TopStart).offset(36.dp, 32.dp))
-        Dot(12, BloopColors.Coral, Modifier.align(Alignment.TopEnd).offset((-52).dp, 48.dp))
-        Dot(76, BloopColors.Mint.copy(alpha = 0.55f), Modifier.align(Alignment.BottomEnd).offset(18.dp, 26.dp))
-        LogoMark()
-    }
-}
-
-@Composable
-private fun Dot(size: Int, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
-    Box(modifier.size(size.dp).clip(CircleShape).background(color))
-}
-
-/** The Bloop app mark: violet tile with a yellow balloon. */
+/** The Bloop app icon: violet tile with a yellow balloon (same drawing as the launcher icon). */
 @Composable
 fun LogoMark() {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(60.dp).clip(RoundedCornerShape(18.dp)).background(BloopColors.Violet),
-    ) {
-        Box(Modifier.offset(y = (-5).dp).size(width = 22.dp, height = 26.dp).clip(CircleShape).background(BloopColors.Lemon))
-    }
+    Image(painterResource(R.drawable.bloop_logo), contentDescription = null, modifier = Modifier.size(64.dp))
 }
 
 @Composable
