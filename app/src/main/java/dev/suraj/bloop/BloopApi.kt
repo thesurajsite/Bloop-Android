@@ -68,10 +68,15 @@ object BloopApi {
         List(arr.length()) { reminderFrom(arr.getJSONObject(it)) }
     }
 
-    suspend fun addReminder(name: String, eventType: String, eventDate: String): Result<Reminder> =
-        call("POST", "/api/reminders", JSONObject()
-            .put("name", name).put("event_type", eventType).put("event_date", eventDate)
-        ) { reminderFrom(it) }
+    /**
+     * POST /api/reminders. [reminderTime] (e.g. "09:30 PM") is the time from the user's profile;
+     * when it is null or blank it is left out and the backend uses the user's saved reminder time.
+     */
+    suspend fun addReminder(name: String, eventType: String, eventDate: String, reminderTime: String?): Result<Reminder> {
+        val body = JSONObject().put("name", name).put("event_type", eventType).put("event_date", eventDate)
+        if (!reminderTime.isNullOrBlank()) body.put("reminder_time", reminderTime)
+        return call("POST", "/api/reminders", body) { reminderFrom(it) }
+    }
 
     /**
      * PATCH /api/reminders/{id}: sends only the fields that are not null.

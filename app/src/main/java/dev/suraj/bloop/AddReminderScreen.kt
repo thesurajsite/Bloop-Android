@@ -81,7 +81,7 @@ fun AddReminderScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAu
         busy = true
         serverErr = null
         scope.launch {
-            BloopApi.addReminder(name.trim(), eventType, date)
+            BloopApi.addReminder(name.trim(), eventType, date, reminderTime = user?.reminderTime)
                 .onSuccess { onSaved() }
                 .onFailure { if (it is NotLoggedIn) onAuthExpired() else serverErr = it.message }
             busy = false
