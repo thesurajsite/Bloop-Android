@@ -60,7 +60,7 @@ private fun isoFromMillis(millis: Long): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddGuestScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthExpired: () -> Unit) {
+fun AddPersonScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthExpired: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var eventType by remember { mutableStateOf(EVENT_TYPES.first()) }
     var date by remember { mutableStateOf("") } // yyyy-MM-dd
@@ -73,13 +73,13 @@ fun AddGuestScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthE
     val scope = rememberCoroutineScope()
 
     fun save() {
-        nameErr = if (name.isBlank()) "Enter your guest's name" else null
+        nameErr = if (name.isBlank()) "Enter the person's name" else null
         dateErr = if (date.isEmpty()) "Pick the event date" else null
         if (nameErr != null || dateErr != null) return
         busy = true
         serverErr = null
         scope.launch {
-            BloopApi.addGuest(name.trim(), eventType, date)
+            BloopApi.addPerson(name.trim(), eventType, date)
                 .onSuccess { onSaved() }
                 .onFailure { if (it is NotLoggedIn) onAuthExpired() else serverErr = it.message }
             busy = false
@@ -97,7 +97,7 @@ fun AddGuestScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthE
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BackButton(onBack)
-            Text("Add guest", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f).padding(start = 16.dp))
+            Text("Add person", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f).padding(start = 16.dp))
         }
 
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -109,7 +109,7 @@ fun AddGuestScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthE
             }
         }
 
-        BloopField("Guest name", name, { name = it }, nameErr)
+        BloopField("Person's name", name, { name = it }, nameErr)
 
         // Event type dropdown
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -164,7 +164,7 @@ fun AddGuestScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthE
             Text(
                 buildAnnotatedString {
                     append("Hey ${user?.name ?: "there"}! It's ")
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(name.trim().ifEmpty { "Guest" }) }
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(name.trim().ifEmpty { "Person" }) }
                     append("'s ")
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(eventType) }
                     append(" today. Give them your kind wishes!")
@@ -175,7 +175,7 @@ fun AddGuestScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthE
 
         Spacer(Modifier.height(4.dp))
         ErrorBox(serverErr)
-        PrimaryButton("Save guest", busy) { save() }
+        PrimaryButton("Save person", busy) { save() }
     }
 
     if (pickDate) {

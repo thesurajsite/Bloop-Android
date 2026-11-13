@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -188,6 +189,6 @@ fun BackButton(onClick: () -> Unit) {
         colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = BloopColors.Surface, contentColor = BloopColors.Ink),
         modifier = Modifier.size(44.dp),
     ) {
-        Text("←", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Icon(BloopIcons.Back, contentDescription = "Back", modifier = Modifier.size(20.dp))
     }
 }

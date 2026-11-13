@@ -57,17 +57,16 @@ fun countdown(days: Int) = when (days) {
 }
 
 @Composable
-fun HomeScreen(user: User?, onAddGuest: () -> Unit, onLogout: () -> Unit, onAuthExpired: () -> Unit) {
-    var guests by remember { mutableStateOf<List<Guest>?>(null) }
+fun HomeScreen(user: User?, onAddPerson: () -> Unit, onProfile: () -> Unit, onAuthExpired: () -> Unit) {
+    var people by remember { mutableStateOf<List<Person>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var toDelete by remember { mutableStateOf<Guest?>(null) }
-    var showAccount by remember { mutableStateOf(false) }
+    var toDelete by remember { mutableStateOf<Person?>(null) }
     val scope = rememberCoroutineScope()
 
     fun load() {
         scope.launch {
-            BloopApi.guests()
-                .onSuccess { guests = it; error = null }
+            BloopApi.people()
+                .onSuccess { people = it; error = null }
                 .onFailure { if (it is NotLoggedIn) onAuthExpired() else error = it.message }
         }
     }
@@ -88,14 +87,14 @@ fun HomeScreen(user: User?, onAddGuest: () -> Unit, onLogout: () -> Unit, onAuth
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.size(44.dp).clip(CircleShape).background(BloopColors.Lemon)
-                            .combinedClickable(onClickLabel = "Account", onClick = { showAccount = true }),
+                            .combinedClickable(onClickLabel = "My profile", onClick = onProfile),
                     ) {
                         Text(user?.name?.firstOrNull()?.uppercase() ?: "?", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                     }
                 }
             }
 
-            val list = guests
+            val list = people
             when {
                 error != null -> item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -121,25 +120,25 @@ fun HomeScreen(user: User?, onAddGuest: () -> Unit, onLogout: () -> Unit, onAuth
                                 Modifier.clip(RoundedCornerShape(22.dp)).background(BloopColors.Surface).padding(horizontal = 14.dp, vertical = 4.dp),
                             ) {
                                 list.drop(1).forEachIndexed { i, g ->
-                                    GuestRow(g, avatarColors[(i + 1) % avatarColors.size], onLongPress = { toDelete = g })
+                                    PersonRow(g, avatarColors[(i + 1) % avatarColors.size], onLongPress = { toDelete = g })
                                     if (i < list.size - 2) HorizontalDivider(color = BloopColors.Line)
                                 }
                             }
                         }
-                        item { Text("Long-press a guest to remove it.", fontSize = 12.sp, color = BloopColors.Muted) }
+                        item { Text("Long-press a person to remove them.", fontSize = 12.sp, color = BloopColors.Muted) }
                     }
                 }
             }
         }
 
         ExtendedFloatingActionButton(
-            onClick = onAddGuest,
+            onClick = onAddPerson,
             containerColor = BloopColors.Ink,
             contentColor = Color.White,
             shape = RoundedCornerShape(28.dp),
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(20.dp),
         ) {
-            Text("+  Add guest", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text("+  Add person", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }
 
@@ -152,7 +151,7 @@ fun HomeScreen(user: User?, onAddGuest: () -> Unit, onLogout: () -> Unit, onAuth
                 TextButton(onClick = {
                     toDelete = null
                     scope.launch {
-                        BloopApi.deleteGuest(g.id)
+                        BloopApi.deletePerson(g.id)
                             .onSuccess { load() }
                             .onFailure { if (it is NotLoggedIn) onAuthExpired() else error = it.message }
                     }
@@ -161,20 +160,10 @@ fun HomeScreen(user: User?, onAddGuest: () -> Unit, onLogout: () -> Unit, onAuth
             dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Cancel") } },
         )
     }
-
-    if (showAccount) {
-        AlertDialog(
-            onDismissRequest = { showAccount = false },
-            title = { Text(user?.name ?: "Account") },
-            text = { Text("${user?.email}\nWhatsApp: +91 ${user?.phone}") },
-            confirmButton = { TextButton(onClick = { showAccount = false; onLogout() }) { Text("Log out") } },
-            dismissButton = { TextButton(onClick = { showAccount = false }) { Text("Close") } },
-        )
-    }
 }
 
 @Composable
-private fun NextUpCard(g: Guest) {
+private fun NextUpCard(g: Person) {
     val tag = when (g.daysLeft) {
         0 -> "TODAY"
         1 -> "TOMORROW"
@@ -199,14 +188,14 @@ private fun NextUpCard(g: Guest) {
 }
 
 @Composable
-private fun GuestRow(g: Guest, color: Color, onLongPress: () -> Unit) {
+private fun PersonRow(g: Person, color: Color, onLongPress: () -> Unit) {
     val soon = g.daysLeft <= 7
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = {}, onLongClick = onLongPress, onLongClickLabel = "Remove guest")
+            .combinedClickable(onClick = {}, onLongClick = onLongPress, onLongClickLabel = "Remove person")
             .padding(vertical = 14.dp),
     ) {
         Avatar(g.name, color)
@@ -233,6 +222,6 @@ private fun EmptyState() {
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(BloopColors.VioletSoft).padding(28.dp),
     ) {
         Text("No events yet", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-        Text("Add a guest and Bloop will remind you on WhatsApp on the day.", fontSize = 14.sp, color = BloopColors.Muted)
+        Text("Add a person and Bloop will remind you on WhatsApp on the day.", fontSize = 14.sp, color = BloopColors.Muted)
     }
 }

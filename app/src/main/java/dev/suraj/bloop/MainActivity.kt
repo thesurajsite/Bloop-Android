@@ -17,7 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.edit
 
-enum class Screen { Login, Signup, Home, AddGuest }
+enum class Screen { Login, Signup, Home, AddPerson, Profile }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                BackHandler(enabled = screen == Screen.Signup || screen == Screen.AddGuest) {
+                BackHandler(enabled = screen == Screen.Signup || screen == Screen.AddPerson || screen == Screen.Profile) {
                     screen = if (screen == Screen.Signup) Screen.Login else Screen.Home
                 }
 
@@ -64,11 +64,16 @@ class MainActivity : ComponentActivity() {
                         Screen.Signup -> SignupScreen(onSignedUp = ::loggedIn, onBack = { screen = Screen.Login })
                         Screen.Home -> HomeScreen(
                             user = user,
-                            onAddGuest = { screen = Screen.AddGuest },
-                            onLogout = ::logout,
+                            onAddPerson = { screen = Screen.AddPerson },
+                            onProfile = { screen = Screen.Profile },
                             onAuthExpired = ::logout,
                         )
-                        Screen.AddGuest -> AddGuestScreen(
+                        Screen.Profile -> ProfileScreen(
+                            user = user,
+                            onBack = { screen = Screen.Home },
+                            onLogout = ::logout,
+                        )
+                        Screen.AddPerson -> AddPersonScreen(
                             user = user,
                             onSaved = { screen = Screen.Home },
                             onBack = { screen = Screen.Home },

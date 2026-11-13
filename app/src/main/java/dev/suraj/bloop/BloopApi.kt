@@ -8,7 +8,7 @@ import java.net.URL
 
 data class User(val id: Long, val name: String, val email: String, val phone: String)
 
-data class Guest(
+data class Person(
     val id: Long,
     val name: String,
     val eventType: String,
@@ -37,22 +37,22 @@ object BloopApi {
 
     suspend fun me(): Result<User> = call("GET", "/api/me") { userFrom(it) }
 
-    suspend fun guests(): Result<List<Guest>> = call("GET", "/api/guests") { json ->
+    suspend fun people(): Result<List<Person>> = call("GET", "/api/guests") { json ->
         val arr = json.getJSONArray("guests")
-        List(arr.length()) { guestFrom(arr.getJSONObject(it)) }
+        List(arr.length()) { personFrom(arr.getJSONObject(it)) }
     }
 
-    suspend fun addGuest(name: String, eventType: String, eventDate: String): Result<Guest> =
+    suspend fun addPerson(name: String, eventType: String, eventDate: String): Result<Person> =
         call("POST", "/api/guests", JSONObject()
             .put("name", name).put("event_type", eventType).put("event_date", eventDate)
-        ) { guestFrom(it) }
+        ) { personFrom(it) }
 
-    suspend fun deleteGuest(id: Long): Result<Unit> = call("DELETE", "/api/guests/$id") { }
+    suspend fun deletePerson(id: Long): Result<Unit> = call("DELETE", "/api/guests/$id") { }
 
     private fun userFrom(j: JSONObject) =
         User(j.getLong("id"), j.getString("name"), j.getString("email"), j.getString("phone"))
 
-    private fun guestFrom(j: JSONObject) = Guest(
+    private fun personFrom(j: JSONObject) = Person(
         id = j.getLong("id"),
         name = j.getString("name"),
         eventType = j.getString("event_type"),

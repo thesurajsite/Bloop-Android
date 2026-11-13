@@ -28,6 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -40,6 +45,8 @@ import androidx.compose.ui.unit.sp
 object BloopColors {
     val Bg = Color(0xFFF5F3FF)
     val Surface = Color(0xFFFFFFFF)
+    val SurfaceTint = Color(0xFFFBFAFF)
+    val Red = Color(0xFFD32F2F)
     val Ink = Color(0xFF17132B)
     val Muted = Color(0xFF5E5875)
     val Line = Color(0xFFEEEBF7)
@@ -153,6 +160,31 @@ fun ErrorBox(message: String?) {
             .background(Color(0xFFFFE1DC))
             .padding(horizontal = 14.dp, vertical = 10.dp),
     )
+}
+
+/** Line icons drawn from the same SVG paths as the design canvas (24×24, 2px round strokes). */
+object BloopIcons {
+    val Back = line("M19 12H5M11 6l-6 6 6 6")
+    val Clock = line("M4 13a8 8 0 1 0 16 0a8 8 0 1 0 -16 0", "M12 9v4l2.5 2.5M5 3 2 6M19 3l3 3")
+    val Chevron = line("m9 6 6 6-6 6", width = 2.5f)
+    val WhatsApp = line("M4 20l1.3-3.9A8 8 0 1 1 8 19z", "M9 10.5c.5 2 2 3.5 4.5 4.5")
+    val Phone = line("M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2")
+    val Mail = line("M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z", "m4 7 8 6 8-6")
+    val Logout = line("M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10")
+
+    private fun line(vararg paths: String, width: Float = 2f): ImageVector =
+        ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f).apply {
+            paths.forEach {
+                addPath(
+                    pathData = addPathNodes(it),
+                    fill = null,
+                    stroke = SolidColor(Color.Black),
+                    strokeLineWidth = width,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                )
+            }
+        }.build()
 }
 
 /** Round initials avatar. */
