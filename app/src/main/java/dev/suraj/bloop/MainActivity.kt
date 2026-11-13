@@ -17,7 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.edit
 
-enum class Screen { Login, Signup, Home, AddPerson, Profile }
+enum class Screen { Login, Signup, Home, AddReminder, Profile }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                BackHandler(enabled = screen == Screen.Signup || screen == Screen.AddPerson || screen == Screen.Profile) {
+                BackHandler(enabled = screen == Screen.Signup || screen == Screen.AddReminder || screen == Screen.Profile) {
                     screen = if (screen == Screen.Signup) Screen.Login else Screen.Home
                 }
 
@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Signup -> SignupScreen(onSignedUp = ::loggedIn, onBack = { screen = Screen.Login })
                         Screen.Home -> HomeScreen(
                             user = user,
-                            onAddPerson = { screen = Screen.AddPerson },
+                            onAddReminder = { screen = Screen.AddReminder },
                             onProfile = { screen = Screen.Profile },
                             onAuthExpired = ::logout,
                         )
@@ -72,8 +72,10 @@ class MainActivity : ComponentActivity() {
                             user = user,
                             onBack = { screen = Screen.Home },
                             onLogout = ::logout,
+                            onAuthExpired = ::logout,
+                            onUserChanged = { user = it },
                         )
-                        Screen.AddPerson -> AddPersonScreen(
+                        Screen.AddReminder -> AddReminderScreen(
                             user = user,
                             onSaved = { screen = Screen.Home },
                             onBack = { screen = Screen.Home },

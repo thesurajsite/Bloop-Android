@@ -104,7 +104,7 @@ fun LoginScreen(onLoggedIn: (String, User) -> Unit, onSignup: () -> Unit) {
 fun SignupScreen(onSignedUp: (String, User) -> Unit, onBack: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
+    var whatsappNumber by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var agree by remember { mutableStateOf(false) }
     var errors by remember { mutableStateOf(mapOf<String, String>()) }
@@ -116,7 +116,7 @@ fun SignupScreen(onSignedUp: (String, User) -> Unit, onBack: () -> Unit) {
         val e = mutableMapOf<String, String>()
         if (name.isBlank()) e["name"] = "Tell us your name"
         if (!validEmail(email)) e["email"] = "Enter a valid email address"
-        if (!Regex("^[6-9][0-9]{9}$").matches(phone)) e["phone"] = "Enter a 10-digit WhatsApp number"
+        if (!Regex("^[6-9][0-9]{9}$").matches(whatsappNumber)) e["whatsappNumber"] = "Enter a 10-digit WhatsApp number"
         if (password.length < 8) e["password"] = "Use at least 8 characters"
         if (!agree) e["agree"] = "Please accept the terms to continue"
         errors = e
@@ -124,7 +124,7 @@ fun SignupScreen(onSignedUp: (String, User) -> Unit, onBack: () -> Unit) {
         busy = true
         serverErr = null
         scope.launch {
-            BloopApi.signup(name.trim(), email.trim(), phone, password)
+            BloopApi.signup(name.trim(), email.trim(), whatsappNumber, password)
                 .onSuccess { (token, user) -> onSignedUp(token, user) }
                 .onFailure { serverErr = it.message }
             busy = false
@@ -150,7 +150,7 @@ fun SignupScreen(onSignedUp: (String, User) -> Unit, onBack: () -> Unit) {
         BloopField("Your name", name, { name = it }, errors["name"])
         BloopField("Email", email, { email = it }, errors["email"], KeyboardType.Email)
         BloopField(
-            "WhatsApp number", phone, { phone = it.filter(Char::isDigit).take(10) }, errors["phone"],
+            "WhatsApp number", whatsappNumber, { whatsappNumber = it.filter(Char::isDigit).take(10) }, errors["whatsappNumber"],
             KeyboardType.Phone, prefix = "+91", hint = "Reminders will arrive on this WhatsApp.",
         )
         BloopField("Password", password, { password = it }, errors["password"], KeyboardType.Password, isPassword = true)

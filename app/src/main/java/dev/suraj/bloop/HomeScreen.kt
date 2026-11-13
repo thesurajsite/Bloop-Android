@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,17 +60,41 @@ fun countdown(days: Int) = when (days) {
 }
 
 @Composable
-fun HomeScreen(user: User?, onAddPerson: () -> Unit, onProfile: () -> Unit, onAuthExpired: () -> Unit) {
-    var people by remember { mutableStateOf<List<Person>?>(null) }
+fun HomeScreen(user: User?, onAddReminder: () -> Unit, onProfile: () -> Unit, onAuthExpired: () -> Unit) {
+    var reminders by remember { mutableStateOf<List<Reminder>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var toDelete by remember { mutableStateOf<Person?>(null) }
+    var toDelete by remember { mutableStateOf<Reminder?>(null) }
+    var bellError by remember { mutableStateOf<String?>(null) }
+    var bellBusy by remember { mutableStateOf(emptySet<String>()) } // reminder ids being saved
     val scope = rememberCoroutineScope()
 
     fun load() {
         scope.launch {
-            BloopApi.people()
-                .onSuccess { people = it; error = null }
+            BloopApi.reminders()
+                .onSuccess { reminders = it; error = null }
                 .onFailure { if (it is NotLoggedIn) onAuthExpired() else error = it.message }
+        }
+    }
+
+    fun setBell(id: String, on: Boolean) {
+        reminders = reminders?.map { if (it.id == id) it.copy(whatsappRemEnable = on) else it }
+    }
+
+    // Bell tap: flip this one reminder at once, save it on the backend, flip back if that fails.
+    fun toggleBell(r: Reminder) {
+        if (r.id in bellBusy) return
+        val on = !r.whatsappRemEnable
+        setBell(r.id, on)
+        bellError = null
+        bellBusy = bellBusy + r.id
+        scope.launch {
+            BloopApi.toggleWhatsAppReminder(on, reminderId = r.id)
+                .onSuccess { setBell(r.id, it.enabled) }
+                .onFailure {
+                    setBell(r.id, !on)
+                    if (it is NotLoggedIn) onAuthExpired() else bellError = it.message
+                }
+            bellBusy = bellBusy - r.id
         }
     }
     LaunchedEffect(Unit) { load() }
@@ -94,7 +121,7 @@ fun HomeScreen(user: User?, onAddPerson: () -> Unit, onProfile: () -> Unit, onAu
                 }
             }
 
-            val list = people
+            val list = reminders
             when {
                 error != null -> item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -107,7 +134,8 @@ fun HomeScreen(user: User?, onAddPerson: () -> Unit, onProfile: () -> Unit, onAu
                 }
                 list.isEmpty() -> item { EmptyState() }
                 else -> {
-                    item { NextUpCard(list.first()) }
+                    if (bellError != null) item { ErrorBox(bellError) }
+                    item { NextUpCard(list.first(), onBell = { toggleBell(list.first()) }) }
                     if (list.size > 1) {
                         item {
                             Row(verticalAlignment = Alignment.Bottom) {
@@ -120,7 +148,10 @@ fun HomeScreen(user: User?, onAddPerson: () -> Unit, onProfile: () -> Unit, onAu
                                 Modifier.clip(RoundedCornerShape(22.dp)).background(BloopColors.Surface).padding(horizontal = 14.dp, vertical = 4.dp),
                             ) {
                                 list.drop(1).forEachIndexed { i, g ->
-                                    PersonRow(g, avatarColors[(i + 1) % avatarColors.size], onLongPress = { toDelete = g })
+                                    ReminderRow(
+                                        g, avatarColors[(i + 1) % avatarColors.size],
+                                        onLongPress = { toDelete = g }, onBell = { toggleBell(g) },
+                                    )
                                     if (i < list.size - 2) HorizontalDivider(color = BloopColors.Line)
                                 }
                             }
@@ -132,7 +163,7 @@ fun HomeScreen(user: User?, onAddPerson: () -> Unit, onProfile: () -> Unit, onAu
         }
 
         ExtendedFloatingActionButton(
-            onClick = onAddPerson,
+            onClick = onAddReminder,
             containerColor = BloopColors.Ink,
             contentColor = Color.White,
             shape = RoundedCornerShape(28.dp),
@@ -151,7 +182,7 @@ fun HomeScreen(user: User?, onAddPerson: () -> Unit, onProfile: () -> Unit, onAu
                 TextButton(onClick = {
                     toDelete = null
                     scope.launch {
-                        BloopApi.deletePerson(g.id)
+                        BloopApi.deleteReminder(g.id)
                             .onSuccess { load() }
                             .onFailure { if (it is NotLoggedIn) onAuthExpired() else error = it.message }
                     }
@@ -163,7 +194,7 @@ fun HomeScreen(user: User?, onAddPerson: () -> Unit, onProfile: () -> Unit, onAu
 }
 
 @Composable
-private fun NextUpCard(g: Person) {
+private fun NextUpCard(g: Reminder, onBell: () -> Unit) {
     val tag = when (g.daysLeft) {
         0 -> "TODAY"
         1 -> "TOMORROW"
@@ -179,16 +210,47 @@ private fun NextUpCard(g: Person) {
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Avatar(g.name, BloopColors.CoralAvatar, size = 52)
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text(g.name, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                 Text("${g.eventType} · ${prettyDate(g.nextDate)}", fontSize = 13.sp, color = BloopColors.VioletText)
             }
+            BellButton(
+                on = g.whatsappRemEnable, onClick = onBell,
+                onColors = BloopColors.Lemon to BloopColors.Ink,
+                offColors = Color.White.copy(alpha = 0.18f) to BloopColors.VioletText,
+            )
         }
     }
 }
 
+/** Round bell button: on = WhatsApp reminder will be sent, off (crossed out) = it won't. */
 @Composable
-private fun PersonRow(g: Person, color: Color, onLongPress: () -> Unit) {
+private fun BellButton(
+    on: Boolean,
+    onClick: () -> Unit,
+    onColors: Pair<Color, Color> = BloopColors.LemonSoft to BloopColors.LemonText,
+    offColors: Pair<Color, Color> = BloopColors.Grey to BloopColors.GreyText,
+) {
+    val (bg, tint) = if (on) onColors else offColors
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .toggleable(value = on, role = Role.Switch, onValueChange = { onClick() }),
+    ) {
+        Icon(
+            if (on) BloopIcons.Bell else BloopIcons.BellOff,
+            contentDescription = if (on) "WhatsApp reminder on" else "WhatsApp reminder off",
+            tint = tint,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+private fun ReminderRow(g: Reminder, color: Color, onLongPress: () -> Unit, onBell: () -> Unit) {
     val soon = g.daysLeft <= 7
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -211,6 +273,7 @@ private fun PersonRow(g: Person, color: Color, onLongPress: () -> Unit) {
             modifier = Modifier.clip(RoundedCornerShape(50)).background(if (soon) BloopColors.LemonSoft else BloopColors.Grey)
                 .padding(horizontal = 10.dp, vertical = 5.dp),
         )
+        BellButton(on = g.whatsappRemEnable, onClick = onBell)
     }
 }
 

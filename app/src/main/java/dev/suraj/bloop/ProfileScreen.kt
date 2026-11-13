@@ -1,6 +1,5 @@
 package dev.suraj.bloop
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,9 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,45 +43,58 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.edit
+import kotlinx.coroutines.launch
 import java.util.Locale
 
-// Reminder settings. For now they are kept on the phone: the backend still sends
-// every reminder at its own fixed REMINDER_HOUR and has no per-user time yet.
-private const val KEY_REMINDER_MINUTES = "reminder_minutes" // minutes after midnight, 0..1439
-private const val KEY_REMINDERS_ON = "reminders_on"
-private const val DEFAULT_REMINDER_MINUTES = 20 * 60 // 08:00 PM
+// Reminder settings. The reminder time is saved on the backend (user and all their reminders),
+// but the backend still sends every reminder at its fixed REMINDER_HOUR for now.
+// The WhatsApp on/off switch is also read from and saved on the backend.
 
 /** A time on a 12-hour clock: hour 1..12, minute 0..59. */
 private data class ClockTime(val hour: Int, val minute: Int, val pm: Boolean) {
     val label: String get() = String.format(Locale.US, "%02d:%02d %s", hour, minute, if (pm) "PM" else "AM")
-    val minutesOfDay: Int get() = ((hour % 12) + if (pm) 12 else 0) * 60 + minute
 
     companion object {
-        fun of(minutesOfDay: Int): ClockTime {
-            val h24 = minutesOfDay / 60
-            val h12 = if (h24 % 12 == 0) 12 else h24 % 12
-            return ClockTime(h12, minutesOfDay % 60, h24 >= 12)
+        /** Reads a backend time like "09:30 PM". Returns null if it doesn't look like that. */
+        fun parse(text: String): ClockTime? {
+            val match = Regex("""^(\d{2}):(\d{2}) (AM|PM)$""").find(text) ?: return null
+            val hour = match.groupValues[1].toInt()
+            val minute = match.groupValues[2].toInt()
+            val pm = match.groupValues[3] == "PM"
+            return ClockTime(hour, minute, pm)
         }
     }
 }
 
+private val DEFAULT_REMINDER_TIME = ClockTime(9, 0, pm = false) // same default as the backend
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(user: User?, onBack: () -> Unit, onLogout: () -> Unit) {
-    val prefs = LocalContext.current.getSharedPreferences("bloop", Context.MODE_PRIVATE)
-    var reminderMinutes by remember { mutableIntStateOf(prefs.getInt(KEY_REMINDER_MINUTES, DEFAULT_REMINDER_MINUTES)) }
-    var remindersOn by remember { mutableStateOf(prefs.getBoolean(KEY_REMINDERS_ON, true)) }
+fun ProfileScreen(
+    user: User?,
+    onBack: () -> Unit,
+    onLogout: () -> Unit,
+    onAuthExpired: () -> Unit,
+    onUserChanged: (User) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var reminderTime by remember(user?.reminderTime) {
+        mutableStateOf(ClockTime.parse(user?.reminderTime.orEmpty()) ?: DEFAULT_REMINDER_TIME)
+    }
+    var remindersOn by remember(user?.whatsappRemEnable) {
+        mutableStateOf(user?.whatsappRemEnable ?: true)
+    }
+    var saving by remember { mutableStateOf(false) }
+    var toggleError by remember { mutableStateOf<String?>(null) }
     var picking by remember { mutableStateOf(false) }
 
-    val timeLabel = ClockTime.of(reminderMinutes).label
+    val timeLabel = reminderTime.label
 
     Column(
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -158,9 +170,26 @@ fun ProfileScreen(user: User?, onBack: () -> Unit, onLogout: () -> Unit) {
                     Text("WhatsApp reminders", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Switch(
                         checked = remindersOn,
-                        onCheckedChange = {
-                            remindersOn = it
-                            prefs.edit { putBoolean(KEY_REMINDERS_ON, it) }
+                        enabled = !saving,
+                        onCheckedChange = { on ->
+                            // Flip at once, then save on the backend; go back if it fails.
+                            remindersOn = on
+                            toggleError = null
+                            saving = true
+                            scope.launch {
+                                BloopApi.toggleWhatsAppReminder(on)
+                                    .onSuccess { r ->
+                                        remindersOn = r.enabled
+                                        if (user != null) {
+                                            onUserChanged(user.copy(whatsappRemEnable = r.enabled))
+                                        }
+                                    }
+                                    .onFailure {
+                                        remindersOn = !on
+                                        if (it is NotLoggedIn) onAuthExpired() else toggleError = it.message
+                                    }
+                                saving = false
+                            }
                         },
                         colors = SwitchDefaults.colors(
                             checkedTrackColor = BloopColors.Violet,
@@ -176,6 +205,9 @@ fun ProfileScreen(user: User?, onBack: () -> Unit, onLogout: () -> Unit) {
                 fontSize = 13.sp, color = BloopColors.Muted, lineHeight = 19.sp,
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
+            toggleError?.let {
+                Text(it, fontSize = 13.sp, color = BloopColors.Red, modifier = Modifier.padding(horizontal = 4.dp))
+            }
         }
 
         // Account
@@ -184,7 +216,7 @@ fun ProfileScreen(user: User?, onBack: () -> Unit, onLogout: () -> Unit) {
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(BloopColors.Surface).padding(horizontal = 14.dp, vertical = 4.dp),
             ) {
-                AccountRow(BloopIcons.Phone, "WhatsApp number", user?.phone?.let { "+91 $it" } ?: "…")
+                AccountRow(BloopIcons.Phone, "WhatsApp number", user?.whatsappNumber?.let { "+91 $it" } ?: "…")
                 HorizontalDivider(color = BloopColors.Line)
                 AccountRow(BloopIcons.Mail, "Email", user?.email ?: "…")
             }
@@ -204,12 +236,26 @@ fun ProfileScreen(user: User?, onBack: () -> Unit, onLogout: () -> Unit) {
 
     if (picking) {
         ReminderTimeSheet(
-            initial = ClockTime.of(reminderMinutes),
+            initial = reminderTime,
             onDismiss = { picking = false },
-            onSet = { t ->
-                reminderMinutes = t.minutesOfDay
-                prefs.edit { putInt(KEY_REMINDER_MINUTES, t.minutesOfDay) }
+            onSet = { newTime ->
+                // Show the new time at once, then save it on the backend; go back if it fails.
+                val oldTime = reminderTime
+                reminderTime = newTime
                 picking = false
+                toggleError = null
+                scope.launch {
+                    BloopApi.updateReminderTime(newTime.label)
+                        .onSuccess { savedTime ->
+                            if (user != null) {
+                                onUserChanged(user.copy(reminderTime = savedTime))
+                            }
+                        }
+                        .onFailure {
+                            reminderTime = oldTime
+                            if (it is NotLoggedIn) onAuthExpired() else toggleError = it.message
+                        }
+                }
             },
         )
     }

@@ -60,7 +60,7 @@ private fun isoFromMillis(millis: Long): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddPersonScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthExpired: () -> Unit) {
+fun AddReminderScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuthExpired: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var eventType by remember { mutableStateOf(EVENT_TYPES.first()) }
     var date by remember { mutableStateOf("") } // yyyy-MM-dd
@@ -79,7 +79,7 @@ fun AddPersonScreen(user: User?, onSaved: () -> Unit, onBack: () -> Unit, onAuth
         busy = true
         serverErr = null
         scope.launch {
-            BloopApi.addPerson(name.trim(), eventType, date)
+            BloopApi.addReminder(name.trim(), eventType, date)
                 .onSuccess { onSaved() }
                 .onFailure { if (it is NotLoggedIn) onAuthExpired() else serverErr = it.message }
             busy = false

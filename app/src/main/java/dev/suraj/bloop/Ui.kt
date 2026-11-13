@@ -170,6 +170,8 @@ object BloopIcons {
     val WhatsApp = line("M4 20l1.3-3.9A8 8 0 1 1 8 19z", "M9 10.5c.5 2 2 3.5 4.5 4.5")
     val Phone = line("M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2")
     val Mail = line("M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z", "m4 7 8 6 8-6")
+    val Bell = line("M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z", "M10 21h4")
+    val BellOff = line("M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z", "M10 21h4", "M4 4l16 16")
     val Logout = line("M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10")
 
     private fun line(vararg paths: String, width: Float = 2f): ImageVector =
