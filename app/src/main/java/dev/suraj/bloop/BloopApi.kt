@@ -1,6 +1,7 @@
 package dev.suraj.bloop
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -39,6 +40,9 @@ data class WhatsAppReminderToggle(
     val remindersUpdated: Int?,
 )
 
+/** A non-2xx reply from the backend; [message] is its {"error": "..."} text. */
+class ApiError(val status: Int, message: String) : Exception(message)
+
 /** Thrown when the backend says the login token is missing or expired. */
 class NotLoggedIn : Exception("Please log in again")
 
@@ -69,7 +73,40 @@ object BloopApi {
             .put("name", name).put("event_type", eventType).put("event_date", eventDate)
         ) { reminderFrom(it) }
 
+    /**
+     * PATCH /api/reminders/{id}: sends only the fields that are not null.
+     * If the backend saved the change but could not move the schedule (500), the same request is retried,
+     * as the API contract asks. Returns the updated reminder.
+     */
+    suspend fun editReminder(
+        reminderId: String,
+        name: String? = null,
+        eventType: String? = null,
+        eventDate: String? = null,
+    ): Result<Reminder> {
+        val body = JSONObject()
+        name?.let { body.put("name", it) }
+        eventType?.let { body.put("event_type", it) }
+        eventDate?.let { body.put("event_date", it) }
+
+        var result: Result<Reminder> = Result.failure(IllegalStateException("not sent"))
+        for (attempt in 0..SCHEDULE_RETRIES) {
+            if (attempt > 0) delay(1_000L * attempt)
+            result = call("PATCH", "/api/reminders/$reminderId", body) { reminderFrom(it) }
+            if (!result.isScheduleNotUpdated()) break
+        }
+        return result
+    }
+
+    /** DELETE /api/reminders/{id}: 204 with no body on success. */
     suspend fun deleteReminder(reminderId: String): Result<Unit> = call("DELETE", "/api/reminders/$reminderId") { }
+
+    private const val SCHEDULE_RETRIES = 2
+
+    private fun Result<*>.isScheduleNotUpdated(): Boolean {
+        val e = exceptionOrNull() as? ApiError ?: return false
+        return e.status == 500 && e.message.orEmpty().startsWith("saved, but could not update")
+    }
 
     /**
      * Turns WhatsApp reminders on or off. With [reminderId] only that reminder changes;
@@ -163,7 +200,7 @@ object BloopApi {
                 val json = if (text.isBlank()) JSONObject() else JSONObject(text)
 
                 if (code == 401 && token != null) throw NotLoggedIn()
-                if (code !in 200..299) error(json.optString("error", "Something went wrong ($code)"))
+                if (code !in 200..299) throw ApiError(code, json.optString("error", "Something went wrong ($code)"))
                 parse(json)
             } finally {
                 conn.disconnect()

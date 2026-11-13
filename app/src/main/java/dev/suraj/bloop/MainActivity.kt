@@ -11,13 +11,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.edit
 
-enum class Screen { Login, Signup, Home, AddReminder, Profile }
+enum class Screen { Login, Signup, Home, AddReminder, EditReminder, Profile }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
             BloopTheme {
                 var screen by remember { mutableStateOf(if (BloopApi.token != null) Screen.Home else Screen.Login) }
                 var user by remember { mutableStateOf<User?>(null) }
+                var editing by remember { mutableStateOf<Reminder?>(null) } // reminder open on the Edit screen
 
                 fun loggedIn(token: String, u: User) {
                     BloopApi.token = token
@@ -54,7 +56,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                BackHandler(enabled = screen == Screen.Signup || screen == Screen.AddReminder || screen == Screen.Profile) {
+                BackHandler(enabled = screen == Screen.Signup || screen == Screen.AddReminder || screen == Screen.EditReminder || screen == Screen.Profile) {
                     screen = if (screen == Screen.Signup) Screen.Login else Screen.Home
                 }
 
@@ -65,6 +67,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Home -> HomeScreen(
                             user = user,
                             onAddReminder = { screen = Screen.AddReminder },
+                            onEditReminder = { editing = it; screen = Screen.EditReminder },
                             onProfile = { screen = Screen.Profile },
                             onAuthExpired = ::logout,
                         )
@@ -81,6 +84,23 @@ class MainActivity : ComponentActivity() {
                             onBack = { screen = Screen.Home },
                             onAuthExpired = ::logout,
                         )
+                        Screen.EditReminder -> {
+                            val r = editing
+                            if (r == null) {
+                                LaunchedEffect(Unit) { screen = Screen.Home }
+                            } else {
+                                // key: a different reminder starts with fresh form state
+                                key(r.id) {
+                                    EditReminderScreen(
+                                        user = user,
+                                        reminder = r,
+                                        onBack = { screen = Screen.Home },
+                                        onDeleted = { editing = null; screen = Screen.Home },
+                                        onAuthExpired = ::logout,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

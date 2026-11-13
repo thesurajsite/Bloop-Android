@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -60,10 +59,15 @@ fun countdown(days: Int) = when (days) {
 }
 
 @Composable
-fun HomeScreen(user: User?, onAddReminder: () -> Unit, onProfile: () -> Unit, onAuthExpired: () -> Unit) {
+fun HomeScreen(
+    user: User?,
+    onAddReminder: () -> Unit,
+    onEditReminder: (Reminder) -> Unit,
+    onProfile: () -> Unit,
+    onAuthExpired: () -> Unit,
+) {
     var reminders by remember { mutableStateOf<List<Reminder>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var toDelete by remember { mutableStateOf<Reminder?>(null) }
     var bellError by remember { mutableStateOf<String?>(null) }
     var bellBusy by remember { mutableStateOf(emptySet<String>()) } // reminder ids being saved
     val scope = rememberCoroutineScope()
@@ -135,7 +139,7 @@ fun HomeScreen(user: User?, onAddReminder: () -> Unit, onProfile: () -> Unit, on
                 list.isEmpty() -> item { EmptyState() }
                 else -> {
                     if (bellError != null) item { ErrorBox(bellError) }
-                    item { NextUpCard(list.first(), onBell = { toggleBell(list.first()) }) }
+                    item { NextUpCard(list.first(), onClick = { onEditReminder(list.first()) }, onBell = { toggleBell(list.first()) }) }
                     if (list.size > 1) {
                         item {
                             Row(verticalAlignment = Alignment.Bottom) {
@@ -150,13 +154,13 @@ fun HomeScreen(user: User?, onAddReminder: () -> Unit, onProfile: () -> Unit, on
                                 list.drop(1).forEachIndexed { i, g ->
                                     ReminderRow(
                                         g, avatarColors[(i + 1) % avatarColors.size],
-                                        onLongPress = { toDelete = g }, onBell = { toggleBell(g) },
+                                        onClick = { onEditReminder(g) }, onBell = { toggleBell(g) },
                                     )
                                     if (i < list.size - 2) HorizontalDivider(color = BloopColors.Line)
                                 }
                             }
                         }
-                        item { Text("Long-press a person to remove them.", fontSize = 12.sp, color = BloopColors.Muted) }
+                        item { Text("Tap a person to edit or delete their reminder.", fontSize = 12.sp, color = BloopColors.Muted) }
                     }
                 }
             }
@@ -172,29 +176,10 @@ fun HomeScreen(user: User?, onAddReminder: () -> Unit, onProfile: () -> Unit, on
             Text("+  Add person", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }
-
-    toDelete?.let { g ->
-        AlertDialog(
-            onDismissRequest = { toDelete = null },
-            title = { Text("Remove ${g.name}?") },
-            text = { Text("Their ${g.eventType.lowercase()} reminder will stop.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    toDelete = null
-                    scope.launch {
-                        BloopApi.deleteReminder(g.id)
-                            .onSuccess { load() }
-                            .onFailure { if (it is NotLoggedIn) onAuthExpired() else error = it.message }
-                    }
-                }) { Text("Remove", color = BloopColors.CoralText) }
-            },
-            dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Cancel") } },
-        )
-    }
 }
 
 @Composable
-private fun NextUpCard(g: Reminder, onBell: () -> Unit) {
+private fun NextUpCard(g: Reminder, onClick: () -> Unit, onBell: () -> Unit) {
     val tag = when (g.daysLeft) {
         0 -> "TODAY"
         1 -> "TOMORROW"
@@ -202,7 +187,8 @@ private fun NextUpCard(g: Reminder, onBell: () -> Unit) {
     }
     Column(
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(BloopColors.Violet).padding(18.dp),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(BloopColors.Violet)
+            .combinedClickable(onClickLabel = "Edit reminder", onClick = onClick).padding(18.dp),
     ) {
         Text(
             tag, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = BloopColors.Ink,
@@ -250,14 +236,14 @@ private fun BellButton(
 }
 
 @Composable
-private fun ReminderRow(g: Reminder, color: Color, onLongPress: () -> Unit, onBell: () -> Unit) {
+private fun ReminderRow(g: Reminder, color: Color, onClick: () -> Unit, onBell: () -> Unit) {
     val soon = g.daysLeft <= 7
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = {}, onLongClick = onLongPress, onLongClickLabel = "Remove person")
+            .combinedClickable(onClick = onClick, onClickLabel = "Edit reminder")
             .padding(vertical = 14.dp),
     ) {
         Avatar(g.name, color)
