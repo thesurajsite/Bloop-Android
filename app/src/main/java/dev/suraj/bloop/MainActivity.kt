@@ -18,7 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.edit
 
-enum class Screen { Login, Signup, Home, AddReminder, EditReminder, Profile }
+enum class Screen { Phone, Otp, Name, Home, AddReminder, EditReminder, Profile }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,7 +31,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             BloopTheme {
-                var screen by remember { mutableStateOf(if (BloopApi.token != null) Screen.Home else Screen.Login) }
+                var screen by remember { mutableStateOf(if (BloopApi.token != null) Screen.Home else Screen.Phone) }
+                var phone by remember { mutableStateOf("") }               // number being verified
+                var signupToken by remember { mutableStateOf<String?>(null) } // set when that number has no account yet
                 var user by remember { mutableStateOf<User?>(null) }
                 var editing by remember { mutableStateOf<Reminder?>(null) } // reminder open on the Edit screen
 
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
                     BloopApi.token = token
                     prefs.edit { putString("token", token) }
                     user = u
+                    signupToken = null
                     screen = Screen.Home
                 }
 
@@ -46,7 +49,8 @@ class MainActivity : ComponentActivity() {
                     BloopApi.token = null
                     prefs.edit { remove("token") }
                     user = null
-                    screen = Screen.Login
+                    signupToken = null
+                    screen = Screen.Phone
                 }
 
                 // Opening the app while logged in: fetch the user's details.
@@ -56,14 +60,30 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                BackHandler(enabled = screen == Screen.Signup || screen == Screen.AddReminder || screen == Screen.EditReminder || screen == Screen.Profile) {
-                    screen = if (screen == Screen.Signup) Screen.Login else Screen.Home
+                BackHandler(enabled = screen != Screen.Phone && screen != Screen.Home) {
+                    screen = when (screen) {
+                        Screen.Otp, Screen.Name -> Screen.Phone
+                        else -> Screen.Home
+                    }
                 }
 
                 Box(Modifier.fillMaxSize().background(BloopColors.Bg)) {
                     when (screen) {
-                        Screen.Login -> LoginScreen(onLoggedIn = ::loggedIn, onSignup = { screen = Screen.Signup })
-                        Screen.Signup -> SignupScreen(onSignedUp = ::loggedIn, onBack = { screen = Screen.Login })
+                        Screen.Phone -> PhoneScreen(initialNumber = phone, onOtpSent = { phone = it; screen = Screen.Otp })
+                        Screen.Otp -> OtpScreen(
+                            whatsappNumber = phone,
+                            onBack = { screen = Screen.Phone },
+                            onLoggedIn = ::loggedIn,
+                            onNewUser = { signupToken = it; screen = Screen.Name },
+                        )
+                        Screen.Name -> {
+                            val t = signupToken
+                            if (t == null) {
+                                LaunchedEffect(Unit) { screen = Screen.Phone }
+                            } else {
+                                NameScreen(signupToken = t, onSignedUp = ::loggedIn, onBack = { signupToken = null; screen = Screen.Phone })
+                            }
+                        }
                         Screen.Home -> HomeScreen(
                             user = user,
                             onAddReminder = { screen = Screen.AddReminder },

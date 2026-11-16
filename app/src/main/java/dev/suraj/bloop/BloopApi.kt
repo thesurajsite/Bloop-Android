@@ -8,10 +8,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class User(
-    val id: String,
+    val id: String,            // backend user id
     val name: String,
-    val email: String,
-    val whatsappNumber: String,
+    val whatsappNumber: String, // 10 digits, without +91; one account per number
     val reminderTime: String, // e.g. "09:00 AM"
     val whatsappRemEnable: Boolean, // WhatsApp reminders on or off for this user
 )
@@ -40,6 +39,13 @@ data class WhatsAppReminderToggle(
     val remindersUpdated: Int?,
 )
 
+/** What happens after a correct OTP. */
+sealed interface OtpResult {
+    data class LoggedIn(val token: String, val user: User) : OtpResult
+    /** No account for this number yet: send [signupToken] with the user's name to create one. */
+    data class NewUser(val signupToken: String) : OtpResult
+}
+
 /** A non-2xx reply from the backend; [message] is its {"error": "..."} text. */
 class ApiError(val status: Int, message: String) : Exception(message)
 
@@ -51,13 +57,20 @@ object BloopApi {
     var baseUrl: String = BuildConfig.BACKEND_URL
     var token: String? = null
 
-    suspend fun signup(name: String, email: String, whatsappNumber: String, password: String): Result<Pair<String, User>> =
-        call("POST", "/api/signup", JSONObject()
-            .put("name", name).put("email", email).put("whatsapp_number", whatsappNumber).put("password", password)
-        ) { it.getString("token") to userFrom(it.getJSONObject("user")) }
+    /** POST /api/otp/request: sends a 6-digit OTP to the number on WhatsApp (3 per 24 hours). */
+    suspend fun requestOtp(whatsappNumber: String): Result<Unit> =
+        call("POST", "/api/otp/request", JSONObject().put("whatsapp_number", whatsappNumber)) { }
 
-    suspend fun login(email: String, password: String): Result<Pair<String, User>> =
-        call("POST", "/api/login", JSONObject().put("email", email).put("password", password)) {
+    /** POST /api/otp/verify: logs in an existing user, or says the number needs a name to sign up. */
+    suspend fun verifyOtp(whatsappNumber: String, otp: String): Result<OtpResult> =
+        call("POST", "/api/otp/verify", JSONObject().put("whatsapp_number", whatsappNumber).put("otp", otp)) {
+            if (it.getBoolean("is_new_user")) OtpResult.NewUser(it.getString("signup_token"))
+            else OtpResult.LoggedIn(it.getString("token"), userFrom(it.getJSONObject("user")))
+        }
+
+    /** POST /api/otp/complete-signup: creates the account for a verified number. */
+    suspend fun completeSignup(signupToken: String, name: String): Result<Pair<String, User>> =
+        call("POST", "/api/otp/complete-signup", JSONObject().put("signup_token", signupToken).put("name", name)) {
             it.getString("token") to userFrom(it.getJSONObject("user"))
         }
 
@@ -159,7 +172,6 @@ object BloopApi {
     private fun userFrom(j: JSONObject) = User(
         id = j.getString("id"),
         name = j.getString("name"),
-        email = j.getString("email"),
         whatsappNumber = j.getString("whatsapp_number"),
         reminderTime = j.getString("reminder_time"),
         whatsappRemEnable = j.getBoolean("whatsapp_rem_enable"),

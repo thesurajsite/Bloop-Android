@@ -128,7 +128,7 @@ fun ProfileScreen(
             }
             Column(Modifier.weight(1f)) {
                 Text(user?.name ?: "…", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(user?.email.orEmpty(), fontSize = 13.sp, color = BloopColors.VioletText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(user?.whatsappNumber?.let { "+91 $it" }.orEmpty(), fontSize = 13.sp, color = BloopColors.VioletText, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
 
@@ -217,8 +217,6 @@ fun ProfileScreen(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(BloopColors.Surface).padding(horizontal = 14.dp, vertical = 4.dp),
             ) {
                 AccountRow(BloopIcons.Phone, "WhatsApp number", user?.whatsappNumber?.let { "+91 $it" } ?: "…")
-                HorizontalDivider(color = BloopColors.Line)
-                AccountRow(BloopIcons.Mail, "Email", user?.email ?: "…")
             }
         }
 
