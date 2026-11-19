@@ -62,6 +62,9 @@ import java.util.Locale
 
 private const val POLL_EVERY_MS = 3_000L
 private const val POLL_TIMES = 25
+// An order left over from an earlier session (app killed mid-payment) is checked only briefly:
+// usually it was never paid, and GET /api/me keeps checking it on the backend anyway.
+private const val RESTORED_POLL_TIMES = 3
 
 /** What the Razorpay checkout reported. Razorpay calls back on the Activity, which sends it here. */
 sealed interface CheckoutResult {
@@ -141,12 +144,12 @@ fun PaywallScreen(
      * 3 s; after a failed or cancelled one it does not wait. Either way, if the order is not
      * confirmed paid, it falls back to the user details API before giving up.
      */
-    suspend fun confirm(orderId: String, poll: Boolean, failMessage: String) {
+    suspend fun confirm(orderId: String, poll: Boolean, failMessage: String, times: Int = POLL_TIMES) {
         checking = true
         message = null
         var user: User? = null
         if (poll) {
-            for (i in 0 until POLL_TIMES) {
+            for (i in 0 until times) {
                 val r = BloopApi.checkOrder(orderId)
                 if (r.exceptionOrNull() is NotLoggedIn) { onAuthExpired(); return }
                 val check = r.getOrNull() // a network error just means: ask again
@@ -156,7 +159,7 @@ fun PaywallScreen(
                     break
                 }
                 if (check?.status == PaymentStatus.Failed) break
-                delay(POLL_EVERY_MS)
+                if (i < times - 1) delay(POLL_EVERY_MS)
             }
         }
         if (user == null) user = premiumUser()
@@ -214,7 +217,10 @@ fun PaywallScreen(
         if (paidUser != null) return@LaunchedEffect
         val pending = pendingOrder(context)
         if (pending != null) {
-            confirm(pending, poll = true, failMessage = "Your last payment was not completed. Please try again.")
+            confirm(
+                pending, poll = true, times = RESTORED_POLL_TIMES,
+                failMessage = "Your last payment was not completed. Please try again.",
+            )
         } else if (loadKey == 0) {
             premiumUser()?.let { paidUser = it }
         }

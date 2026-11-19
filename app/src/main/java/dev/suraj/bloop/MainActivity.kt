@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Checkout.preload(applicationContext) // TEMP test
+        Checkout.preload(applicationContext)
 
         // Only the login token is saved on the phone; everything else comes from the backend.
         val prefs = getSharedPreferences("bloop", Context.MODE_PRIVATE)
