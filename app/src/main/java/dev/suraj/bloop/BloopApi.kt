@@ -13,7 +13,54 @@ data class User(
     val whatsappNumber: String, // 10 digits, without +91; one account per number
     val reminderTime: String, // e.g. "09:00 AM"
     val whatsappRemEnable: Boolean, // WhatsApp reminders on or off for this user
+    val isPremium: Boolean,     // paid and the plan has not run out; only then the app opens Home
+    val premiumUntil: String?,  // RFC 3339, null = never paid
+    val hasReminders: Boolean,  // has saved reminders, i.e. not a brand-new user
+) {
+    /**
+     * Home opens for a premium user, and for an old user (one with reminders) even when not
+     * premium; they see "plan expired" on Profile instead. A new user has to pay first.
+     */
+    val canOpenHome: Boolean get() = isPremium || hasReminders
+}
+
+/** What the paywall shows; all of it comes from GET /api/plans. */
+data class Paywall(
+    val title: String,
+    val subtitle: String,
+    val benefits: List<String>,
+    val ctaText: String,
+    val plans: List<Plan>,
 )
+
+data class Plan(
+    val id: String,
+    val title: String,
+    val term: String,          // e.g. "1 year"
+    val amount: Long,          // paise: 9900 = ₹99
+    val originalAmount: Long?, // shown struck through when set
+    val currency: String,
+    val description: String,
+    val popular: Boolean,
+    val selected: Boolean,     // picked when the paywall opens
+)
+
+/** A Razorpay order made by the backend: the checkout is opened with it. */
+data class PaymentOrder(
+    val orderId: String,
+    val keyId: String,
+    val amount: Long,
+    val currency: String,
+    val name: String,
+    val description: String,
+    val prefillName: String,
+    val prefillContact: String,
+)
+
+enum class PaymentStatus { Pending, Paid, Failed }
+
+/** GET /api/payments/orders/{id}: what the backend found at Razorpay, and the user after it. */
+data class OrderCheck(val status: PaymentStatus, val user: User)
 
 /**
  * One reminder as the backend's API returns it (GET/POST /api/reminders).
@@ -74,7 +121,52 @@ object BloopApi {
             it.getString("token") to userFrom(it.getJSONObject("user"))
         }
 
+    /**
+     * GET /api/me. It also says whether the user is premium; for a user who is not, the backend
+     * first checks their recent orders with Razorpay, so a late payment still counts.
+     */
     suspend fun me(): Result<User> = call("GET", "/api/me") { userFrom(it) }
+
+    /** GET /api/plans: the paywall's text and plans. */
+    suspend fun paywall(): Result<Paywall> = call("GET", "/api/plans") { json ->
+        val p = json.getJSONObject("paywall")
+        val benefits = p.getJSONArray("benefits")
+        val plans = json.getJSONArray("plans")
+        Paywall(
+            title = p.getString("title"),
+            subtitle = p.optString("subtitle"),
+            benefits = List(benefits.length()) { benefits.getString(it) },
+            ctaText = p.getString("cta_text"),
+            plans = List(plans.length()) { planFrom(plans.getJSONObject(it)) },
+        )
+    }
+
+    /** POST /api/payments/orders: the backend makes a Razorpay order for the plan. */
+    suspend fun createOrder(planId: String): Result<PaymentOrder> =
+        call("POST", "/api/payments/orders", JSONObject().put("plan_id", planId)) {
+            val prefill = it.optJSONObject("prefill") ?: JSONObject()
+            PaymentOrder(
+                orderId = it.getString("order_id"),
+                keyId = it.getString("key_id"),
+                amount = it.getLong("amount"),
+                currency = it.getString("currency"),
+                name = it.optString("name", "Bloop"),
+                description = it.optString("description"),
+                prefillName = prefill.optString("name"),
+                prefillContact = prefill.optString("contact"),
+            )
+        }
+
+    /** GET /api/payments/orders/{id}: whether Razorpay says the order was paid. */
+    suspend fun checkOrder(orderId: String): Result<OrderCheck> =
+        call("GET", "/api/payments/orders/$orderId") {
+            val status = when (it.getString("status")) {
+                "paid" -> PaymentStatus.Paid
+                "failed" -> PaymentStatus.Failed
+                else -> PaymentStatus.Pending
+            }
+            OrderCheck(status, userFrom(it.getJSONObject("user")))
+        }
 
     suspend fun reminders(): Result<List<Reminder>> = call("GET", "/api/reminders") { json ->
         val arr = json.getJSONArray("reminders")
@@ -175,6 +267,21 @@ object BloopApi {
         whatsappNumber = j.getString("whatsapp_number"),
         reminderTime = j.getString("reminder_time"),
         whatsappRemEnable = j.getBoolean("whatsapp_rem_enable"),
+        isPremium = j.optBoolean("is_premium", false),
+        premiumUntil = if (j.isNull("premium_until")) null else j.optString("premium_until").ifBlank { null },
+        hasReminders = j.optBoolean("has_reminders", false),
+    )
+
+    private fun planFrom(j: JSONObject) = Plan(
+        id = j.getString("id"),
+        title = j.getString("title"),
+        term = j.getString("term"),
+        amount = j.getLong("amount"),
+        originalAmount = j.optLong("original_amount", 0).takeIf { it > 0 },
+        currency = j.optString("currency", "INR"),
+        description = j.optString("description"),
+        popular = j.optBoolean("popular"),
+        selected = j.optBoolean("selected"),
     )
 
     private fun reminderFrom(j: JSONObject) = Reminder(

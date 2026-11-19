@@ -173,6 +173,8 @@ object BloopIcons {
     val Bell = line("M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z", "M10 21h4")
     val BellOff = line("M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z", "M10 21h4", "M4 4l16 16")
     val Trash = line("M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3")
+    val Check = line("M5 12.5l4.5 4.5L19 7", width = 2.5f)
+    val Crown = line("M4 18h16M4 18 3 7l5 4 4-6 4 6 5-4-1 11")
     val Logout = line("M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10")
 
     private fun line(vararg paths: String, width: Float = 2f): ImageVector =

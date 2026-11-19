@@ -32,6 +32,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,8 +83,14 @@ fun ProfileScreen(
     onLogout: () -> Unit,
     onAuthExpired: () -> Unit,
     onUserChanged: (User) -> Unit,
+    onRenew: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+
+    // Fresh details on open, so a plan that ran out while the app was open shows here.
+    LaunchedEffect(Unit) {
+        BloopApi.me().onSuccess(onUserChanged).onFailure { if (it is NotLoggedIn) onAuthExpired() }
+    }
     var reminderTime by remember(user?.reminderTime) {
         mutableStateOf(ClockTime.parse(user?.reminderTime.orEmpty()) ?: DEFAULT_REMINDER_TIME)
     }
@@ -131,6 +138,8 @@ fun ProfileScreen(
                 Text(user?.whatsappNumber?.let { "+91 $it" }.orEmpty(), fontSize = 13.sp, color = BloopColors.VioletText, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+
+        if (user != null && !user.isPremium) PlanExpiredBadge(user, onRenew)
 
         // Reminders
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -368,6 +377,39 @@ private fun AccountRow(icon: ImageVector, label: String, value: String) {
         Column(Modifier.weight(1f)) {
             Text(label, fontSize = 13.sp, color = BloopColors.Muted)
             Text(value, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** Shown only when the user is not premium: their reminders are not being sent. Opens the paywall. */
+@Composable
+private fun PlanExpiredBadge(user: User, onRenew: () -> Unit) {
+    val expiredOn = formatPremiumDate(user.premiumUntil)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color(0xFFFFE1DC))
+            .border(2.dp, BloopColors.Coral, RoundedCornerShape(22.dp))
+            .clickable(onClickLabel = "Renew Bloop Premium", onClick = onRenew)
+            .padding(16.dp),
+    ) {
+        IconTile(BloopIcons.Crown, BloopColors.Coral, Color.White, size = 44, corner = 14, iconSize = 20)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                if (user.premiumUntil != null) "Your premium plan has expired" else "You're not on Bloop Premium",
+                fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = BloopColors.CoralText,
+            )
+            Text(
+                (expiredOn?.let { "Expired on $it. " } ?: "") + "WhatsApp reminders are paused until you renew.",
+                fontSize = 12.sp, color = BloopColors.Ink,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Renew", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BloopColors.CoralText)
+            Icon(BloopIcons.Chevron, contentDescription = null, tint = BloopColors.CoralText, modifier = Modifier.size(14.dp))
         }
     }
 }
